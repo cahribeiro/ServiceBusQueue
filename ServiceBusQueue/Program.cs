@@ -4,6 +4,7 @@ using System.Text.Json.Serialization;
 
 string conn = "";
 string sbName = "test";
+string sbQueueDeadLetterName = "test/$DeadLetterQueue"; //DeadLetter queue name
 
 string[] Importance = new string[] { "High", "Medium", "Low" };
 
@@ -27,6 +28,7 @@ async Task SendMessages(List<Order> orders)
     {
         ServiceBusMessage serviceBusMessage = new ServiceBusMessage(JsonConvert.SerializeObject(order));
         serviceBusMessage.ContentType = "application/json";
+        //serviceBusMessage.TimeToLive = TimeSpan.FromSeconds(30);
         serviceBusMessage.ApplicationProperties.Add("Importance", Importance[i]);
         
         if (!serviceBusMessageBatch.TryAddMessage(serviceBusMessage))
@@ -73,4 +75,21 @@ async Task ReceiveMessages()
         throw;
     }
     
+}
+
+//Get one message at the time and locks it
+async Task PeekMessage()
+{
+    ServiceBusClient client = new ServiceBusClient(conn);
+    ServiceBusReceiver serviceBusReceiver = client.CreateReceiver(sbName, new ServiceBusReceiverOptions() { ReceiveMode = ServiceBusReceiveMode.PeekLock });
+
+    ServiceBusReceivedMessage message = await serviceBusReceiver.ReceiveMessageAsync();
+
+    Order? order = JsonConvert.DeserializeObject<Order>(message.Body.ToString());
+    Console.WriteLine("Order ID {0}", order?.OrderID);
+    Console.WriteLine("Quantity {0}", order?.Quantity);
+    Console.WriteLine("Unit Price {0}", order?.UnitPrice);
+
+    await serviceBusReceiver.CompleteMessageAsync(message);
+
 }
